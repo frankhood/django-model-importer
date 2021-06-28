@@ -1,0 +1,9 @@
+invoke
+twine
+wheel
+zest.releaser
+
+faker
+freezegun
+factory_boy
+model_bakery
