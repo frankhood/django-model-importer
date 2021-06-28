@@ -188,22 +188,102 @@ class ModelCSVImporter(BaseModelCSVImporter):
     def set_model_attr(self, obj, _field_name, value):
         setattr(obj, _field_name, value)
 
+    def process_date_field(self, obj, _field_name, value):
+        setattr(obj, _field_name, parse(value).date())
+
+    def process_time_field(self, obj, _field_name, value):
+        setattr(obj, _field_name, parse(value).time())
+
+    def process_datetime_field(self, obj, _field_name, value):
+        setattr(obj, _field_name, parse(value))
+
+    def process_fk_field(self, obj, _field_name, _column_name, value):
+        fk_model = getattr(obj.__class__, _field_name).field.remote_field.related_model
+        fk_name = self.get_model_related_field_name(_column_name)
+        try:
+            setattr(obj, _field_name, fk_model.objects.get(**({fk_name: value})))
+        except ObjectDoesNotExist:
+            if self.can_add_fk_object(fk_model):
+                fk_obj = fk_model.objects.create(**({fk_name: int(value)}))
+                setattr(obj, _field_name, fk_obj)
+
+    def process_m2m_field(self, obj, _field_name, _column_name, value, _columns):
+        m2m_map = {}
+        if getattr(obj.__class__, _field_name).field.related_model:
+            m2m_model = getattr(obj.__class__, _field_name).field.related_model
+        elif getattr(obj.__class__, _field_name).field.remote_field.related_model:
+            m2m_model = getattr(obj.__class__, _field_name).field.remote_field.related_model
+        m2m_name = self.get_model_related_field_name(_column_name)
+        print("m2m_model : {m2m_model}\nm2m_name : {m2m_name}\n".format(m2m_model=m2m_model,
+                                                                        m2m_name=m2m_name))
+        m2m_objs = []
+        for _value in value.split(self.m2m_separator):
+            _value = _value.strip()
+            print("_value for model {model} : {value}".format(value=_value, model=m2m_model))
+            try:
+                m2m_obj = self.get_m2m_object(
+                    m2m_model=m2m_model,
+                    m2m_field_name=m2m_name,
+                    m2m_field_value=_value
+                )
+            except ObjectDoesNotExist:
+                if self.can_add_m2m_object(m2m_model, value=_value):
+                    m2m_obj = self.create_m2m_object(
+                        m2m_model=m2m_model,
+                        m2m_field_name=m2m_name,
+                        m2m_field_value=_value
+                    )
+                else:
+                    m2m_obj = None
+            if m2m_obj:
+                m2m_objs.append(m2m_obj)
+        if m2m_objs:
+            m2m_map.update({_field_name: m2m_objs})
+            # obj.save()
+            # getattr(obj,_field_name).add(m2m_obj)
+        return m2m_map
+
+    def process_django_countries_field(self, obj, _field_name, value):
+        _country_found = False
+        if value == "China (PR)":
+            value = "China"
+        elif value == "USA":
+            value = "United States of America"
+        elif value == "Viet Nam":
+            value = "Vietnam"
+        elif value in ["Korea (Republic)", "Korea (the Republic of)"]:
+            value = "North Korea"
+        for _country_choice in COUNTRY_CHOICES:
+            if _country_choice[1] == value:
+                setattr(obj, _field_name, _country_choice[0])
+                _country_found = True
+        if not _country_found:
+            logger.warning(
+                "Not Found any Country with name {country_name} for entry {entry}".format(
+                    country_name=value, entry=obj))
+
     def process_row(self, **kwargs):
         m2m_map = {}
         _columns = kwargs.get('items')
         import_id = self.get_import_id(_columns)
         import_id_field_name = self.get_import_id_field_name()
         _is_creation = True
-        try:
-            obj = self.model.objects.get(**{import_id_field_name: import_id})
-            _is_creation = False
-            if self.can_update:
-                logger.info("Updating Model with id %s" % (import_id,))
-        except ObjectDoesNotExist:
+        if import_id and import_id_field_name:
+            try:
+                obj = self.model.objects.get(**{import_id_field_name: import_id})
+                _is_creation = False
+                if self.can_update:
+                    logger.info("Updating Model with id %s" % (import_id,))
+            except ObjectDoesNotExist:
+                obj = self.model()
+                if self.can_create:
+                    logger.info("Importing Model with id %s" % (import_id,))
+                    # if isinstance(obj._meta.get_field(import_id_field_name), fields.related.ManyToManyField):
+                    #     obj._meta.get_field(import_id_field_name).set(import_id)
+                    # else:
+                    setattr(obj, import_id_field_name, import_id)
+        else:
             obj = self.model()
-            if self.can_create:
-                logger.info("Importing Model with id %s" % (import_id,))
-                setattr(obj, import_id_field_name, import_id)
 
         if (_is_creation and self.can_create) or (not _is_creation and self.can_update):
             for key, value in _columns.items():
@@ -217,68 +297,19 @@ class ModelCSVImporter(BaseModelCSVImporter):
                         model_field = obj._meta.get_field(_field_name)
                         logger.info("Setting attr %s with value %s" % (_field_name, value))
                         if isinstance(model_field, fields.DateField):
-                            setattr(obj, _field_name, parse(value).date())
+                            self.process_date_field(obj, _field_name, value)
                         elif isinstance(model_field, fields.TimeField):
-                            setattr(obj, _field_name, parse(value).time())
+                            self.process_time_field(obj, _field_name, value)
                         elif isinstance(model_field, fields.DateTimeField):
-                            setattr(obj, _field_name, parse(value))
+                            self.process_datetime_field(obj, _field_name, value)
                         elif isinstance(model_field, fields.related.ForeignKey):
-                            fk_model = getattr(obj.__class__, _field_name).field.remote_field.related_model
-                            fk_name = self.get_model_related_field_name(_column_name)
-                            try:
-                                setattr(obj, _field_name, fk_model.objects.get(**({fk_name: value})))
-                            except ObjectDoesNotExist:
-                                if self.can_add_fk_object(fk_model):
-                                    fk_obj = fk_model.objects.create(**({fk_name: int(value)}))
-                                    setattr(obj, _field_name, fk_obj)
+                            self.process_fk_field(obj, _field_name, _column_name, value)
                         elif isinstance(model_field, fields.related.ManyToManyField):
-                            m2m_model = getattr(obj.__class__, _field_name).field.remote_field.related_model
-                            m2m_name = self.get_model_related_field_name(_column_name)
-                            print("m2m_model : {m2m_model}\nm2m_name : {m2m_name}\n".format(m2m_model=m2m_model,
-                                                                                            m2m_name=m2m_name))
-                            m2m_objs = []
-                            for _value in value.split(self.m2m_separator):
-                                _value = _value.strip()
-                                print("_value for model {model} : {value}".format(value=_value, model=m2m_model))
-                                try:
-                                    m2m_obj = self.get_m2m_object(
-                                        m2m_model=m2m_model,
-                                        m2m_field_name=m2m_name,
-                                        m2m_field_value=_value
-                                    )
-                                except ObjectDoesNotExist:
-                                    if self.can_add_m2m_object(m2m_model, value=_value):
-                                        m2m_obj = self.create_m2m_object(
-                                            m2m_model=m2m_model,
-                                            m2m_field_name=m2m_name,
-                                            m2m_field_value=_value
-                                        )
-                                    else:
-                                        m2m_obj = None
-                                if m2m_obj:
-                                    m2m_objs.append(m2m_obj)
-                            if m2m_objs:
-                                m2m_map.update({_field_name: m2m_objs})
-                                # obj.save()
-                                # getattr(obj,_field_name).add(m2m_obj)
+                            new_m2m_map = self.process_m2m_field(obj, _field_name, _column_name, value, _columns)
+                            if new_m2m_map:
+                                m2m_map.update(new_m2m_map)
                         elif "django_countries" in settings.INSTALLED_APPS and isinstance(model_field, CountryField):
-                            _country_found = False
-                            if value == "China (PR)":
-                                value = "China"
-                            elif value == "USA":
-                                value = "United States of America"
-                            elif value == "Viet Nam":
-                                value = "Vietnam"
-                            elif value in ["Korea (Republic)", "Korea (the Republic of)"]:
-                                value = "North Korea"
-                            for _country_choice in COUNTRY_CHOICES:
-                                if _country_choice[1] == value:
-                                    setattr(obj, _field_name, _country_choice[0])
-                                    _country_found = True
-                            if not _country_found:
-                                logger.warning(
-                                    "Not Found any Country with name {country_name} for entry {entry}".format(
-                                        country_name=value, entry=obj))
+                            self.process_django_countries_field(obj, _field_name, value)
                         else:
                             self.set_model_attr(obj, _field_name, value)
                     else:
