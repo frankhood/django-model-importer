@@ -18,10 +18,15 @@ class PollsImporter(ModelCSVImporter):
     }
 
     def get_import_id_column_index(self):
-        return "Titolo"
+        return None
 
     def get_import_id_field_name(self):
-        return "title"
+        return None
+
+    def get_import_id(self, columns):
+        return None
+
+
 
 
 
