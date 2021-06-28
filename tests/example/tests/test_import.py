@@ -37,7 +37,7 @@ class PollImportUnitTest(TestCase):
         csv_importer.import_csv(file_name)
         self.assertEqual(
             Poll.objects.all().count(),
-            2
+            4
         )
         self.assertTrue(
             Poll.objects.get(title="New Title")
