@@ -262,6 +262,11 @@ class ModelCSVImporter(BaseModelCSVImporter):
                 "Not Found any Country with name {country_name} for entry {entry}".format(
                     country_name=value, entry=obj))
 
+    def add_m2m_objects(self, obj, m2m_map):
+        for _field_name, m2m_objs in m2m_map.items():
+            for m2m_obj in m2m_objs:
+                getattr(obj, _field_name).add(m2m_obj)
+
     def process_row(self, **kwargs):
         m2m_map = {}
         _columns = kwargs.get('items')
@@ -318,9 +323,6 @@ class ModelCSVImporter(BaseModelCSVImporter):
             # print("Saving obj {title}.... with start_date:{start_date}".format(title=obj.title,start_date=obj.start_date))
             obj.save()
             if m2m_map:
-                for _field_name, m2m_objs in m2m_map.items():
-                    for m2m_obj in m2m_objs:
-                        # print("Saving m2m wiht field_name = {_field_name} and instance {m2m_obj}".format(_field_name=_field_name,m2m_obj=m2m_obj))
-                        getattr(obj, _field_name).add(m2m_obj)
+                self.add_m2m_objects(obj, m2m_map)
         return obj
         # obj.save_m2m()
