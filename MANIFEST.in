@@ -3,4 +3,6 @@ include CONTRIBUTING.rst
 include HISTORY.rst
 include LICENSE
 include README.rst
+include requirements.txt
+include static/*
 recursive-include django_model_importer *.html *.png *.gif *js *.css *jpg *jpeg *svg *py

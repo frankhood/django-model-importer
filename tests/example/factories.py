@@ -1,7 +1,6 @@
 import factory.django
 from django.apps import apps
 from django.conf import settings
-from django.utils.translation import gettext_lazy as _
 
 
 class UserFactory(factory.django.DjangoModelFactory):

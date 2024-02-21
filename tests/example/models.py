@@ -1,23 +1,18 @@
 from django.conf import settings
 from django.db import models
-
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 
 class Poll(models.Model):
-    title = models.CharField(
-        _("Title"), max_length=255
-    )
+    title = models.CharField(_("Title"), max_length=255)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name=_("User"),
         on_delete=models.SET_NULL,
-        null=True
+        null=True,
     )
     poll_categories = models.ManyToManyField(
-        "example.PollCategory",
-        verbose_name=_("Poll Categories"),
-        related_name="polls"
+        "example.PollCategory", verbose_name=_("Poll Categories"), related_name="polls"
     )
 
     class Meta:
@@ -31,14 +26,12 @@ class Poll(models.Model):
 
 
 class Question(models.Model):
-    text = models.TextField(
-        _("Question Text")
-    )
+    text = models.TextField(_("Question Text"))
     poll = models.ForeignKey(
         "example.Poll",
         verbose_name=_("Poll"),
         on_delete=models.CASCADE,
-        related_name="questions"
+        related_name="questions",
     )
 
     class Meta:
@@ -52,15 +45,10 @@ class Question(models.Model):
 
 
 class PollCategory(models.Model):
-    name = models.CharField(
-        _("Name"),
-        max_length=255
-    )
+    name = models.CharField(_("Name"), max_length=255)
 
     class Meta:
         """PollCategory Meta."""
 
         verbose_name = _("Poll Category")
         verbose_name_plural = _("Poll Categories")
-
-

@@ -8,7 +8,7 @@ class PollsImporter(ModelCSVImporter):
     can_add_fk = True
     can_add_m2m = True
 
-    model = Poll
+    model: object | None = Poll
 
     db_mapping = {
         "Titolo": "title",
@@ -25,8 +25,3 @@ class PollsImporter(ModelCSVImporter):
 
     def get_import_id(self, columns):
         return None
-
-
-
-
-

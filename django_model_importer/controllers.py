@@ -1,28 +1,25 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 import logging
 from pathlib import Path
 
 from dateutil.parser import parse
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db.models import fields
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 try:
     from django_countries import countries as COUNTRY_CHOICES
     from django_countries.fields import Country, CountryField
-except ImportError as ex:
+except ImportError:
     Country = CountryField = None
     COUNTRY_CHOICES = []
-import pandas as pd
 import numpy as np
-
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-class PandasCSVImporter(object):
+class PandasCSVImporter:
     delimiter = ";"
     quotechar = '"'
     # escapechar = '\\'
@@ -31,8 +28,8 @@ class PandasCSVImporter(object):
     from_row = 1
 
     def __init__(self, **kwargs):
-        self.delimiter = kwargs.get('delimiter', self.delimiter)
-        self.logger = kwargs.get('logger', self.logger)
+        self.delimiter = kwargs.get("delimiter", self.delimiter)
+        self.logger = kwargs.get("logger", self.logger)
 
     # def import_csv(self, file_path, **kwargs):
     #     logger.debug("importing csv {0}".format(file_path))
@@ -61,43 +58,80 @@ class PandasCSVImporter(object):
                 sheet_name=sheet_name,
                 dtype=str,
                 na_values=[
-                    "-1.#IND", "1.#QNAN", "1.#IND", "-1.#QNAN",
-                    "#N/A N/A", "#N/A", "N/A", "n/a",
+                    "-1.#IND",
+                    "1.#QNAN",
+                    "1.#IND",
+                    "-1.#QNAN",
+                    "#N/A N/A",
+                    "#N/A",
+                    "N/A",
+                    "n/a",
                     # "NA", 'ND',
-                    "#NA", "NULL", "null", "NaN", "-NaN", "nan", "-nan",
-                    "", '-', '#N/D', 'nd',
+                    "#NA",
+                    "NULL",
+                    "null",
+                    "NaN",
+                    "-NaN",
+                    "nan",
+                    "-nan",
+                    "",
+                    "-",
+                    "#N/D",
+                    "nd",
                 ],
-                keep_default_na=False
+                keep_default_na=False,
             )
         elif file_extension == "csv":
             return pd.read_csv(
-                file_path, delimiter=self.delimiter, sep=self.quotechar,
-                dtype=str, na_values=[
-                    "-1.#IND", "1.#QNAN", "1.#IND", "-1.#QNAN",
-                    "#N/A N/A", "#N/A", "N/A", "n/a",
+                file_path,
+                delimiter=self.delimiter,
+                # sep=self.quotechar,
+                dtype=str,
+                na_values=[
+                    "-1.#IND",
+                    "1.#QNAN",
+                    "1.#IND",
+                    "-1.#QNAN",
+                    "#N/A N/A",
+                    "#N/A",
+                    "N/A",
+                    "n/a",
                     # "NA", 'ND',
-                    "#NA", "NULL", "null", "NaN", "-NaN", "nan", "-nan",
-                    "", '-', '#N/D', 'nd',
+                    "#NA",
+                    "NULL",
+                    "null",
+                    "NaN",
+                    "-NaN",
+                    "nan",
+                    "-nan",
+                    "",
+                    "-",
+                    "#N/D",
+                    "nd",
                 ],
-                keep_default_na=False)
+                keep_default_na=False,
+            )
         else:
-            raise NotImplementedError(f"get_rows_as_data_frame is not implemented yet "
-                                      f"for file extension '{file_extension}'")
+            raise NotImplementedError(
+                f"get_rows_as_data_frame is not implemented yet "
+                f"for file extension '{file_extension}'"
+            )
 
     def get_data_frame_as_dict(self, data_frame):
         # data_frame.columns = [self.db_mapping.get(column_name, column_name) for column_name in data_frame.columns]
         logger.info(f"data_frame : \n {data_frame}")
-        data_dict = data_frame.replace({np.nan: ""}).to_dict('records')
+        data_dict = data_frame.replace({np.nan: ""}).to_dict("records")
         return data_dict
 
     def validate_columns(self, columns):
-        """ Use this method to validate file structure"""
-        logger.debug("Columns : {}".format(columns))
+        """Use this method to validate file structure"""
+        logger.debug(f"Columns : {columns}")
 
     def import_csv(self, file_path, **kwargs):
-        logger.debug("importing csv {0}".format(file_path))
-        data_frame = self.get_rows_as_data_frame(file_path,
-                                                 sheet_name=kwargs.pop("sheet_name", 0) or 0)
+        logger.debug(f"importing csv {file_path}")
+        data_frame = self.get_rows_as_data_frame(
+            file_path, sheet_name=kwargs.pop("sheet_name", 0) or 0
+        )
         self.validate_columns(list(data_frame.columns))
         data_dict = self.get_data_frame_as_dict(data_frame)
         imported_number = error_number = 0
@@ -106,14 +140,22 @@ class PandasCSVImporter(object):
                 imported_number += 1
             else:
                 error_number += 1
-        self.logger.info(_("Imported CSV of {0} rows of which {1} were not processed"
-                           "".format(len(data_dict), error_number)))
-        return {'rows': len(data_dict), 'imported': imported_number, 'errors': error_number}
+        self.logger.info(
+            _(
+                "Imported CSV of {} rows of which {} were not processed"
+                "".format(len(data_dict), error_number)
+            )
+        )
+        return {
+            "rows": len(data_dict),
+            "imported": imported_number,
+            "errors": error_number,
+        }
 
     def _import_row(self, row, row_number, **kwargs):
-        callback = kwargs.get('callback', None)
+        callback = kwargs.get("callback", None)
         kwargs = kwargs or {}
-        kwargs.update({'items': row})
+        kwargs.update({"items": row})
         if callback and hasattr(self, callback):
             return getattr(self, callback)(**kwargs)
         else:
@@ -124,18 +166,18 @@ class PandasCSVImporter(object):
 
 
 class BaseModelCSVImporter(PandasCSVImporter):
-    model = None
+    model: object | None = None
     can_update = True
     can_create = True
 
-    db_mapping = {
+    db_mapping = {  # type:ignore
         # "Name":"name",
         # ...
     }
 
     def process_row(self, **kwargs):
         obj = self.model()
-        _columns = kwargs.get('items')
+        _columns = kwargs.get("items")
         for key, value in _columns.iteritems():
             model_field = self.db_mapping.get(key)
             if model_field:
@@ -144,25 +186,25 @@ class BaseModelCSVImporter(PandasCSVImporter):
 
 
 class ModelCSVImporter(BaseModelCSVImporter):
-    model = None
+    model: object | None = None
 
     can_add_fk = True
     can_add_m2m = True
 
-    m2m_separator = '|'
+    m2m_separator = "|"
 
-    db_mapping = {
+    db_mapping = {  # type:ignore
         # "Name": "name",
         # ...
     }
 
     def get_model_field_name(self, csv_string):
         field = self.db_mapping.get(csv_string, csv_string) or csv_string
-        return field.split('.')[0]
+        return field.split(".")[0]
 
     def get_model_related_field_name(self, csv_string):
         field = self.db_mapping.get(csv_string, csv_string) or csv_string
-        return field.split('.')[1] if len(field.split('.')) > 1 else field
+        return field.split(".")[1] if len(field.split(".")) > 1 else field
 
     def get_import_id(self, columns):
         return columns[self.get_import_id_column_index()]
@@ -200,6 +242,7 @@ class ModelCSVImporter(BaseModelCSVImporter):
     def process_fk_field(self, obj, _field_name, _column_name, value):
         fk_model = getattr(obj.__class__, _field_name).field.remote_field.related_model
         fk_name = self.get_model_related_field_name(_column_name)
+        print(f"{fk_model=} {fk_name=}")
         try:
             setattr(obj, _field_name, fk_model.objects.get(**({fk_name: value})))
         except ObjectDoesNotExist:
@@ -212,26 +255,29 @@ class ModelCSVImporter(BaseModelCSVImporter):
         if getattr(obj.__class__, _field_name).field.related_model:
             m2m_model = getattr(obj.__class__, _field_name).field.related_model
         elif getattr(obj.__class__, _field_name).field.remote_field.related_model:
-            m2m_model = getattr(obj.__class__, _field_name).field.remote_field.related_model
+            m2m_model = getattr(
+                obj.__class__, _field_name
+            ).field.remote_field.related_model
         m2m_name = self.get_model_related_field_name(_column_name)
-        print("m2m_model : {m2m_model}\nm2m_name : {m2m_name}\n".format(m2m_model=m2m_model,
-                                                                        m2m_name=m2m_name))
+        print(
+            "m2m_model : {m2m_model}\nm2m_name : {m2m_name}\n".format(
+                m2m_model=m2m_model, m2m_name=m2m_name
+            )
+        )
         m2m_objs = []
         for _value in value.split(self.m2m_separator):
             _value = _value.strip()
-            print("_value for model {model} : {value}".format(value=_value, model=m2m_model))
+            print(f"_value for model {m2m_model} : {_value}")
             try:
                 m2m_obj = self.get_m2m_object(
-                    m2m_model=m2m_model,
-                    m2m_field_name=m2m_name,
-                    m2m_field_value=_value
+                    m2m_model=m2m_model, m2m_field_name=m2m_name, m2m_field_value=_value
                 )
             except ObjectDoesNotExist:
                 if self.can_add_m2m_object(m2m_model, value=_value):
                     m2m_obj = self.create_m2m_object(
                         m2m_model=m2m_model,
                         m2m_field_name=m2m_name,
-                        m2m_field_value=_value
+                        m2m_field_value=_value,
                     )
                 else:
                     m2m_obj = None
@@ -260,7 +306,9 @@ class ModelCSVImporter(BaseModelCSVImporter):
         if not _country_found:
             logger.warning(
                 "Not Found any Country with name {country_name} for entry {entry}".format(
-                    country_name=value, entry=obj))
+                    country_name=value, entry=obj
+                )
+            )
 
     def add_m2m_objects(self, obj, m2m_map):
         for _field_name, m2m_objs in m2m_map.items():
@@ -269,7 +317,7 @@ class ModelCSVImporter(BaseModelCSVImporter):
 
     def process_row(self, **kwargs):
         m2m_map = {}
-        _columns = kwargs.get('items')
+        _columns = kwargs.get("items")
         import_id = self.get_import_id(_columns)
         import_id_field_name = self.get_import_id_field_name()
         _is_creation = True
@@ -278,11 +326,11 @@ class ModelCSVImporter(BaseModelCSVImporter):
                 obj = self.model.objects.get(**{import_id_field_name: import_id})
                 _is_creation = False
                 if self.can_update:
-                    logger.info("Updating Model with id %s" % (import_id,))
+                    logger.info(f"Updating Model with id {import_id}")
             except ObjectDoesNotExist:
                 obj = self.model()
                 if self.can_create:
-                    logger.info("Importing Model with id %s" % (import_id,))
+                    logger.info(f"Importing Model with id {import_id}")
                     # if isinstance(obj._meta.get_field(import_id_field_name), fields.related.ManyToManyField):
                     #     obj._meta.get_field(import_id_field_name).set(import_id)
                     # else:
@@ -292,15 +340,15 @@ class ModelCSVImporter(BaseModelCSVImporter):
 
         if (_is_creation and self.can_create) or (not _is_creation and self.can_update):
             for key, value in _columns.items():
+                print(f"{key=} {value=}")
                 _column_name = key
-                if value is not None and value != 'NULL' and value != '':
-                    if (
-                        hasattr(obj.__class__, self.get_model_field_name(_column_name))
-                        or hasattr(obj, self.get_model_field_name(_column_name))
-                    ):
+                if value is not None and value != "NULL" and value != "":
+                    if hasattr(
+                        obj.__class__, self.get_model_field_name(_column_name)
+                    ) or hasattr(obj, self.get_model_field_name(_column_name)):
                         _field_name = self.get_model_field_name(_column_name)
                         model_field = obj._meta.get_field(_field_name)
-                        logger.info("Setting attr %s with value %s" % (_field_name, value))
+                        logger.info(f"Setting attr {_field_name} with value {value}")
                         if isinstance(model_field, fields.DateField):
                             self.process_date_field(obj, _field_name, value)
                         elif isinstance(model_field, fields.TimeField):
@@ -310,10 +358,15 @@ class ModelCSVImporter(BaseModelCSVImporter):
                         elif isinstance(model_field, fields.related.ForeignKey):
                             self.process_fk_field(obj, _field_name, _column_name, value)
                         elif isinstance(model_field, fields.related.ManyToManyField):
-                            new_m2m_map = self.process_m2m_field(obj, _field_name, _column_name, value, _columns)
+                            new_m2m_map = self.process_m2m_field(
+                                obj, _field_name, _column_name, value, _columns
+                            )
                             if new_m2m_map:
                                 m2m_map.update(new_m2m_map)
-                        elif "django_countries" in settings.INSTALLED_APPS and isinstance(model_field, CountryField):
+                        elif (
+                            "django_countries" in settings.INSTALLED_APPS
+                            and isinstance(model_field, CountryField)
+                        ):
                             self.process_django_countries_field(obj, _field_name, value)
                         else:
                             self.set_model_attr(obj, _field_name, value)
